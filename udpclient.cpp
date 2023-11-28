@@ -1,12 +1,30 @@
 #include "udpclient.h"
 #include <QVBoxLayout>
 
+#pragma pack(push, 1)
+struct Message1
+{
+    quint16 header = 0xABCD;
+    quint16 height;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct Message2
+{
+    quint16 header = 0x1234;
+};
+#pragma pack(pop)
+
+Message1 msg1;
+Message2 msg2;
+
 UDPClient::UDPClient(QWidget *parent) :
     QWidget(parent)
 {
     setWindowTitle("Клиент");
 
-    statusLabel = new QLabel("Связь с сервером: НЕТ", this);
+    statusLabel = new QLabel("Связь с сервером: нет", this);
     heightLabel = new QLabel("Текущая высота: 0 м", this);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -19,6 +37,10 @@ UDPClient::UDPClient(QWidget *parent) :
 
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readingDatagrams()));
 
+    timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &UDPClient::signalServer);
+    timer->start(2000);
+
     if (!udpSocket->bind(QHostAddress::LocalHost, 1111)) {
         qDebug() << "Не удалось забиндить на адрес и порт";
     } else {
@@ -27,6 +49,17 @@ UDPClient::UDPClient(QWidget *parent) :
 }
 
 UDPClient::~UDPClient(){}
+
+void UDPClient::signalServer()
+{
+    QByteArray datagram;
+    QDataStream out(&datagram, QIODevice::WriteOnly);
+    out << msg2.header;
+
+    udpSocket->writeDatagram(datagram.constData(), datagram.size(), QHostAddress::LocalHost, 9999);
+    curTime = QTime::currentTime();
+    qDebug() << curTime.toString() << "- Ping";
+}
 
 void UDPClient::readingDatagrams()
 {
@@ -38,31 +71,27 @@ void UDPClient::readingDatagrams()
         QByteArray datagram;
         datagram.resize(udpSocket->pendingDatagramSize());
         udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
-        heightLabel->setText(QString(datagram));
-        qDebug() << "Получено сообщение: " << datagram.data()
-            << "\nОтправитель:\nIP: " << sender.toString()
-            << "\nPort: " << QString("%1").arg(senderPort)
-            << "\n==========";
+
+        lastMessageTime = QTime::currentTime();
+        twoSecondsAgo = QTime::currentTime().addSecs(-2);
+
+        QDataStream in(&datagram, QIODevice::ReadOnly);
+
+        in >> msg1.header >> msg1.height;
+
+        //TODO: fix this code resetting the height num to zero
+        if (msg1.header == 43981)
+        {
+            dataTime = QDateTime::currentDateTime();
+            statusLabel->setText("Связь с сервером: да");
+            heightLabel->setText(QString("Текущая высота: %1 м").arg(msg1.height));
+            curTime = QTime::currentTime();
+            qDebug() << curTime.toString() << "- Pong";
+        }
+        else if (lastMessageTime > twoSecondsAgo)
+        {
+            statusLabel->setText("Связь с сервером: нет");
+            heightLabel->setText(QString("Текущая высота: 0 м"));
+        }
     }
-
-    /*
-   while (udpSocket->hasPendingDatagrams())
-   {
-       QByteArray datagram;
-       datagram.resize(udpSocket->pendingDatagramSize());
-       udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
-
-       // Deserialize the QByteArray into a Message1 instance
-       QDataStream in(&datagram, QIODevice::ReadOnly);
-       Message1 message;
-       in >> message.header >> message.height;
-
-       // Set the heightLabel text to the height value
-       heightLabel->setText(QString("Текущая высота: %1 м").arg(message.height));
-
-       qDebug() << "Получено сообщение: " << message.header << ", " << message.height
-           << "\nОтправитель:\nIP: " << sender.toString()
-           << "\nPort: " << QString("%1").arg(senderPort)
-           << "\n==========";
-   }*/
 }
