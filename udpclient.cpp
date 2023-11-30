@@ -22,29 +22,29 @@ Message2 msg2;
 UDPClient::UDPClient(QWidget *parent) :
     QWidget(parent)
 {
-    setWindowTitle("Клиент");
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    udpSocket = new QUdpSocket(this);
+    timer = new QTimer(this);
+    updTimer = new QTimer(this);
 
+    setWindowTitle("Клиент");
+    setFixedSize(250, 100);
     statusLabel = new QLabel("Связь с сервером: нет", this);
     heightLabel = new QLabel("Текущая высота: 0 м", this);
-
-    QVBoxLayout *layout = new QVBoxLayout(this);
-
     layout->addWidget(statusLabel);
     layout->addWidget(heightLabel);
     setLayout(layout);
 
-    udpSocket = new QUdpSocket(this);
-
-    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readingDatagrams()));
-
-    timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, &UDPClient::signalServer);
-    timer->start(2000);
-
-    if (!udpSocket->bind(QHostAddress::LocalHost, 1111)) {
-        qDebug() << "Не удалось забиндить на адрес и порт";
-    } else {
-        qDebug() << "Забинжен на данный адрес и порт";
+    if (udpSocket->bind(QHostAddress::LocalHost, 1111))
+    {
+        connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readingDatagrams()));
+        connect(timer, &QTimer::timeout, this, &UDPClient::signalServer);
+        timer->start(2000);
+        connect(updTimer, SIGNAL(timeout()), this, SLOT(updateHeightLabel()));
+    }
+    else
+    {
+        qDebug() << "Error";
     }
 }
 
@@ -59,6 +59,12 @@ void UDPClient::signalServer()
     udpSocket->writeDatagram(datagram.constData(), datagram.size(), QHostAddress::LocalHost, 9999);
     curTime = QTime::currentTime();
     qDebug() << curTime.toString() << "- Ping";
+}
+
+void UDPClient::updateHeightLabel()
+{
+    heightLabel->setText(QString("Текущая высота: %1 м").arg(QString::number(static_cast<double>(msg1.height)))); //fix
+    updTimer->stop();
 }
 
 void UDPClient::readingDatagrams()
@@ -79,12 +85,13 @@ void UDPClient::readingDatagrams()
 
         in >> msg1.header >> msg1.height;
 
-        //TODO: fix this code resetting the height num to zero
         if (msg1.header == 43981)
         {
-            dataTime = QDateTime::currentDateTime();
+            if (!updTimer->isActive())
+            {
+                updTimer->start(23000);
+            }
             statusLabel->setText("Связь с сервером: да");
-            heightLabel->setText(QString("Текущая высота: %1 м").arg(msg1.height));
             curTime = QTime::currentTime();
             qDebug() << curTime.toString() << "- Pong";
         }
