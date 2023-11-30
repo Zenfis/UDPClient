@@ -5,7 +5,6 @@
 #include <QUdpSocket>
 #include <QLabel>
 #include <QTimer>
-#include <QDateTime>
 #include <QTime>
 
 class UDPClient : public QWidget
@@ -20,17 +19,20 @@ signals:
 
 private slots:
     void readingDatagrams();
+    void updateHeightLabel();
     void signalServer();
 
 private:
     QUdpSocket *udpSocket;
     QLabel *statusLabel;
     QLabel *heightLabel;
+    QLabel *indicatorLabel;
     QTimer *timer;
+    QTimer *updTimer;
     QTime lastMessageTime;
     QTime twoSecondsAgo;
-    QDateTime dataTime;
     QTime curTime;
+    QTime tfsa;
 };
 
 #endif // UDPCLIENT_H
