@@ -7,6 +7,8 @@
 #include <QTimer>
 #include <QTime>
 
+#include "heightindicatorwidget.h"
+
 class UDPClient : public QWidget
 {
     Q_OBJECT
@@ -17,12 +19,15 @@ public:
 
 signals:
 
+public slots:
+    void updateHeight();
+
 private slots:
     void readingDatagrams();
-    void updateHeightLabel();
     void signalServer();
 
 private:
+    HeightIndicatorWidget *widget;
     QUdpSocket *udpSocket;
     QLabel *statusLabel;
     QLabel *heightLabel;
