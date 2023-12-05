@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QPainterPath>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 #pragma pack(push, 1)
 struct Message1
@@ -80,6 +81,8 @@ UDPClient::UDPClient(QWidget *parent) :
 
 UDPClient::~UDPClient(){}
 
+double precision;
+
 HeightIndicatorWidget::HeightIndicatorWidget(QWidget* parent) : QWidget(parent) { m_height = 0; }
 
 void HeightIndicatorWidget::setHeight(int height) { m_height = height; update(); }
@@ -105,14 +108,18 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     double angle_per_point = 360.0 / points_total;
     double angle = (m_height / m_height_range) * points_total * angle_per_point;
 
-    //Arrows
-    static const QPoint hourHand[3] = {
+    double range = 0.99;
+    double points = 10;
+    double anglep = 360.0 / points;
+    double anglee = (precision / range) * points * anglep;
+
+    static const QPoint fullHand[3] = {
         QPoint(11 * scaleFactor, 12 * scaleFactor),
         QPoint(-11 * scaleFactor, 12 * scaleFactor),
         QPoint(0, -175 * scaleFactor)
     };
 
-    static const QPoint minuteHand[3] = {
+    static const QPoint precHand[3] = {
         QPoint(11 * scaleFactor, 12 * scaleFactor),
         QPoint(-11 * scaleFactor, 12 * scaleFactor),
         QPoint(0, -105 * scaleFactor)
@@ -126,21 +133,20 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     painter.setBrush(color);
 
     painter.save();
-    painter.rotate(angle);
-    painter.drawConvexPolygon(hourHand, 3);
+    painter.rotate(static_cast<int>(angle));
+    painter.drawConvexPolygon(fullHand, 3);
     painter.restore();
 
     painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
     painter.setBrush(color);
 
     painter.save();
-    painter.rotate(15.0 * 20.0);
-    painter.drawConvexPolygon(minuteHand, 3);
+    painter.rotate(anglee);
+    painter.drawConvexPolygon(precHand, 3);
 
     painter.restore();
     painter.restore();
 
-    //Text and rect
     QPainterPath path;
     path.addRoundedRect(QRectF(centerX - 53 * scaleFactor,
                                centerY - 33 * scaleFactor,
@@ -214,17 +220,19 @@ void UDPClient::readingDatagrams()
         }
         else if (msg1.header != 43981 && str.contains("Текущая высота:"))
         {
-            heightLabel->setText(QString(datagram));
+            heightLabel->setText(str);
+            QRegularExpression rx("(\\d+\\.\\d+)");
+            QRegularExpressionMatch match = rx.match(str);
+            QString number = match.captured(0);
+            precision = number.toDouble() - std::floor(number.toDouble());
         }
         else if (lastMessageTime > twoSecondsAgo)
         {
             statusLabel->setText("Связь с сервером: нет");
-            heightLabel->setText(QString("Текущая высота: 0 м"));
         }
         else
         {
             statusLabel->setText("Связь с сервером: нет");
-            heightLabel->setText(QString("Текущая высота: 0 м"));
         }
     }
 }
