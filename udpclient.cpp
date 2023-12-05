@@ -1,8 +1,8 @@
 #include "udpclient.h"
 
 #include <QVBoxLayout>
-
 #include <QPainterPath>
+#include <QFileInfo>
 
 #pragma pack(push, 1)
 struct Message1
@@ -22,12 +22,19 @@ struct Message2
 Message1 msg1;
 Message2 msg2;
 
+QString settingsFilePath = "C:\\Users\\user01\\Documents\\projects\\UDPClient\\settings.ini";
+QSettings settings("C:\\Users\\user01\\Documents\\projects\\UDPClient\\settings.ini", QSettings::IniFormat);
+QString client_ip = settings.value("clienthost/client_ip").toString();
+quint16 client_port = settings.value("clienthost/client_port").toUInt();
+QString server_ip = settings.value("sendtoserver/server_ip").toString();
+quint16 server_port = settings.value("sendtoserver/server_port").toUInt();
+
 UDPClient::UDPClient(QWidget *parent) :
     QWidget(parent)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
     setMinimumSize(380, 400);
-    setMaximumSize(500, 520);
+    setMaximumSize(740, 760);
     udpSocket = new QUdpSocket(this);
     timer = new QTimer(this);
     updTimer = new QTimer(this);
@@ -46,39 +53,42 @@ UDPClient::UDPClient(QWidget *parent) :
     layout->addWidget(widget);
     setLayout(layout);
 
-    if (udpSocket->bind(QHostAddress::LocalHost, 1111))
-    {
-        connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readingDatagrams()));
-        connect(timer, &QTimer::timeout, this, &UDPClient::signalServer);
-        timer->start(2000);
-        connect(updTimer, SIGNAL(timeout()), this, SLOT(updateHeight()));
-        updTimer->start(23000);
-    }
-    else
-    {
-        qDebug() << "Error";
-    }
+    if (!QFileInfo::exists(settingsFilePath)) { qDebug() << "Файл настроек не найден"; return; }
+    if (client_ip.isEmpty()) { qDebug() << "client_ip не указан в settings.ini"; return; }
+    if (client_port == 0) { qDebug() << "client_port не указан в settings.ini"; return; }
+    if (server_ip.isEmpty()) { qDebug() << "server_ip не указан в settings.ini"; return; }
+    if (server_port == 0) { qDebug() << "server_port не указан в settings.ini"; return; }
+
+    QHostAddress clientAddress;
+    bool isValid = clientAddress.setAddress(client_ip);
+
+    if (!isValid) { qDebug() << "Неверный IP адрес"; return; }
+    if (udpSocket->state() == QAbstractSocket::BoundState) { qDebug() << "Сокет уже привязан"; return; }
+
+    bool socketBinded = udpSocket->bind(clientAddress, client_port);
+
+    if (!socketBinded) { qDebug() << "Ошибка привязки сокета: " << udpSocket->errorString(); return; }
+
+    connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readingDatagrams()));
+    connect(timer, SIGNAL(timeout()), this, SLOT(signalServer()));
+    connect(updTimer, SIGNAL(timeout()), this, SLOT(updateHeight()));
+    timer->start(2000);
+    updTimer->start(25000);
+
+    qDebug() << "Клиент запущен!";
 }
 
 UDPClient::~UDPClient(){}
 
-HeightIndicatorWidget::HeightIndicatorWidget(QWidget* parent)
-    : QWidget(parent)
-{
-    m_height = 0;
-}
+HeightIndicatorWidget::HeightIndicatorWidget(QWidget* parent) : QWidget(parent) { m_height = 0; }
 
-void HeightIndicatorWidget::setHeight(int height)
-{
-    m_height = height;
-    update();
-}
+void HeightIndicatorWidget::setHeight(int height) { m_height = height; update(); }
 
 void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    QPixmap pixmap("C:\\Users\\user01\\Documents\\indicator.png");
+    QPixmap pixmap("C:\\Users\\user01\\Documents\\projects\\UDPClient\\indicator.png");
     QSize newSize = this->size();
     QPixmap scaledPixmap = pixmap.scaled(newSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     int marginX = (this->width() - scaledPixmap.width()) / 2;
@@ -89,6 +99,48 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     int centerY = (this->height() - scaledPixmap.height()) / 2 + scaledPixmap.height() / 2;
 
     double scaleFactor = (newSize.width() + newSize.height()) / (2 * 350.0 + 2 * 90.0);
+
+    double m_height_range = 9999;
+    double points_total = 40;
+    double angle_per_point = 360.0 / points_total;
+    double angle = (m_height / m_height_range) * points_total * angle_per_point;
+
+    //Arrows
+    static const QPoint hourHand[3] = {
+        QPoint(11 * scaleFactor, 12 * scaleFactor),
+        QPoint(-11 * scaleFactor, 12 * scaleFactor),
+        QPoint(0, -175 * scaleFactor)
+    };
+
+    static const QPoint minuteHand[3] = {
+        QPoint(11 * scaleFactor, 12 * scaleFactor),
+        QPoint(-11 * scaleFactor, 12 * scaleFactor),
+        QPoint(0, -105 * scaleFactor)
+    };
+
+    painter.save();
+    painter.translate(centerX - 4, centerY);
+
+    QColor color(255, 255, 255);
+    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
+    painter.setBrush(color);
+
+    painter.save();
+    painter.rotate(angle);
+    painter.drawConvexPolygon(hourHand, 3);
+    painter.restore();
+
+    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
+    painter.setBrush(color);
+
+    painter.save();
+    painter.rotate(15.0 * 20.0);
+    painter.drawConvexPolygon(minuteHand, 3);
+
+    painter.restore();
+    painter.restore();
+
+    //Text and rect
     QPainterPath path;
     path.addRoundedRect(QRectF(centerX - 53 * scaleFactor,
                                centerY - 33 * scaleFactor,
@@ -110,41 +162,7 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
                             100 * scaleFactor,
                             50 * scaleFactor ),
                      Qt::AlignCenter, QString::number(m_height));
-
-    //Стрелки в разработке
-    static const QPoint hourHand[3] = {
-        QPoint(11, 12),
-        QPoint(-11, 12),
-        QPoint(0, -175)
-    };
-
-    static const QPoint minuteHand[3] = {
-        QPoint(11, 12),
-        QPoint(-11, 12),
-        QPoint(0, -105)
-    };
-
-    painter.translate(centerX - 4, centerY);
-
-    QColor color(255, 255, 255);
-    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
-    painter.setBrush(color);
-
-    painter.save();
-    painter.rotate(30.0 *  20.0);
-    painter.drawConvexPolygon(hourHand, 3);
-    painter.restore();
-
-    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
-    painter.setBrush(color);
-
-    painter.save();
-        painter.rotate(15.0 *  20.0);
-    painter.drawConvexPolygon(minuteHand, 3);
-
-    painter.restore();
 }
-
 
 void UDPClient::signalServer()
 {
@@ -152,7 +170,7 @@ void UDPClient::signalServer()
     QDataStream out(&datagram, QIODevice::WriteOnly);
     out << msg2.header;
 
-    udpSocket->writeDatagram(datagram.constData(), datagram.size(), QHostAddress::LocalHost, 9999);
+    udpSocket->writeDatagram(datagram.constData(), datagram.size(), QHostAddress(server_ip), server_port);
     curTime = QTime::currentTime();
     qDebug() << curTime.toString() << "- Ping";
 }
@@ -188,7 +206,7 @@ void UDPClient::readingDatagrams()
         {
             if (!updTimer->isActive())
             {
-                updTimer->start(23000);
+                updTimer->start(25000);
             }
             statusLabel->setText("Связь с сервером: да");
             curTime = QTime::currentTime();
