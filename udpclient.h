@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QTime>
+#include <QSettings>
 
 #include "heightindicatorwidget.h"
 
