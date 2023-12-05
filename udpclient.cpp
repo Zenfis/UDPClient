@@ -74,18 +74,21 @@ UDPClient::UDPClient(QWidget *parent) :
     connect(timer, SIGNAL(timeout()), this, SLOT(signalServer()));
     connect(updTimer, SIGNAL(timeout()), this, SLOT(updateHeight()));
     timer->start(2000);
-    updTimer->start(25000);
+    updTimer->start(23000);
 
     qDebug() << "Клиент запущен!";
 }
 
 UDPClient::~UDPClient(){}
-
-double precision;
+double precision = 0.0;
 
 HeightIndicatorWidget::HeightIndicatorWidget(QWidget* parent) : QWidget(parent) { m_height = 0; }
 
-void HeightIndicatorWidget::setHeight(int height) { m_height = height; update(); }
+void HeightIndicatorWidget::setHeight(int height)
+{
+    m_height = height;
+    //update();
+}
 
 void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
 {
@@ -102,6 +105,7 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     int centerY = (this->height() - scaledPixmap.height()) / 2 + scaledPixmap.height() / 2;
 
     double scaleFactor = (newSize.width() + newSize.height()) / (2 * 350.0 + 2 * 90.0);
+    double scaleHands = (newSize.width() + newSize.height()) / (2 * this->width() + 2 * this->height());
 
     double m_height_range = 9999;
     double points_total = 40;
@@ -114,22 +118,22 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     double anglee = (precision / range) * points * anglep;
 
     static const QPoint fullHand[3] = {
-        QPoint(11 * scaleFactor, 12 * scaleFactor),
-        QPoint(-11 * scaleFactor, 12 * scaleFactor),
-        QPoint(0, -175 * scaleFactor)
+        QPoint(11, 12),
+        QPoint(-11, 12),
+        QPoint(0, -205)
     };
 
     static const QPoint precHand[3] = {
-        QPoint(11 * scaleFactor, 12 * scaleFactor),
-        QPoint(-11 * scaleFactor, 12 * scaleFactor),
-        QPoint(0, -105 * scaleFactor)
+        QPoint(11, 12),
+        QPoint(-11, 12),
+        QPoint(0, -125)
     };
 
     painter.save();
     painter.translate(centerX - 4, centerY);
 
     QColor color(255, 255, 255);
-    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
+    painter.setPen(QPen(Qt::darkGray, 2, Qt::SolidLine));
     painter.setBrush(color);
 
     painter.save();
@@ -137,7 +141,7 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
     painter.drawConvexPolygon(fullHand, 3);
     painter.restore();
 
-    painter.setPen(QPen(Qt::lightGray, 2, Qt::SolidLine));
+    painter.setPen(QPen(Qt::darkGray, 2, Qt::SolidLine));
     painter.setBrush(color);
 
     painter.save();
@@ -179,12 +183,14 @@ void UDPClient::signalServer()
     udpSocket->writeDatagram(datagram.constData(), datagram.size(), QHostAddress(server_ip), server_port);
     curTime = QTime::currentTime();
     qDebug() << curTime.toString() << "- Ping";
+
+
 }
 
 void UDPClient::updateHeight()
 {
     widget->setHeight(static_cast<int>(msg1.height));
-    updTimer->stop();
+    widget->update();
 }
 
 void UDPClient::readingDatagrams()
@@ -210,10 +216,6 @@ void UDPClient::readingDatagrams()
 
         if (msg1.header == 43981)
         {
-            if (!updTimer->isActive())
-            {
-                updTimer->start(25000);
-            }
             statusLabel->setText("Связь с сервером: да");
             curTime = QTime::currentTime();
             qDebug() << curTime.toString() << "- Pong";
