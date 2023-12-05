@@ -38,7 +38,6 @@ private:
     QTime lastMessageTime;
     QTime twoSecondsAgo;
     QTime curTime;
-    QTime tfsa;
 };
 
 #endif // UDPCLIENT_H
