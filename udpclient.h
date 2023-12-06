@@ -37,7 +37,6 @@ private:
     QTimer *updTimer;
     QTime lastMessageTime;
     QTime twoSecondsAgo;
-    QTime curTime;
 };
 
 #endif // UDPCLIENT_H
