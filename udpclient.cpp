@@ -32,8 +32,7 @@ UDPClient::UDPClient(QWidget *parent) :
     //Интерфейс
     {
         QVBoxLayout *layout = new QVBoxLayout(this);
-        setMinimumSize(380, 400);
-        setMaximumSize(740, 760);
+        setMinimumSize(280, 300);
         udpSocket = new QUdpSocket(this);
         timer = new QTimer(this);
         updTimer = new QTimer(this);
@@ -42,7 +41,6 @@ UDPClient::UDPClient(QWidget *parent) :
         heightLabel = new QLabel("Текущая высота: 0 м", this);
         widget = new HeightIndicatorWidget(this);
         layout->setSpacing(2);
-        //layout->setContentsMargins(7, 0, 0, 0);
         statusLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
         statusLabel->setAlignment(Qt::AlignLeft);
         layout->addWidget(statusLabel);
@@ -89,79 +87,128 @@ void HeightIndicatorWidget::setHeight(int height) { m_height = height; update();
 
 void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
 {
+    double side = qMin(width(), height());
+    double scale = side / 200.0;
+    double centerX = width() / 2;
+    double centerY = height() / 2;
+
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    QSize newSize = this->size();
-    double a = qMin(width(), height());
-    double k = a / 100.0;
 
-    double scaleFactor = (newSize.width() + newSize.height()) / (2 * width() + 2 * height());
-
-    int centerX = newSize.width() / 2;
-    int centerY = newSize.height() / 2;
-
+    //Квадрат
     painter.setBrush(Qt::black);
-    painter.fillRect(this->rect(), Qt::black);
     painter.save();
+    painter.fillRect(this->rect(), Qt::black);
     painter.restore();
 
-    /*painter.translate(this->rect().center());
-    painter.setPen(Qt::green);
-    painter.scale(k / 2, k / 2);
-    for (int j = 0; j < 40; ++j)
-    {
-        if ((j % 5) != 0)
-            painter.drawLine(0, -92, 0, -96);
-        painter.rotate(10.0);
-    }
-    painter.restore();*/
-    painter.setPen(Qt::white);
-    painter.translate(this->rect().center());
-    painter.scale(k / 2, k / 2);
-    for (int i = 0; i < 10; ++i)
-    {
-        painter.drawLine(0, -88, 0, -96);
-        if (i == 0)  painter.drawText(-10,-88,20,20,Qt::AlignHCenter | Qt::AlignTop,QString::number(0));
-        else  painter.drawText(-10,-88,20,20,Qt::AlignHCenter | Qt::AlignTop,QString::number(i));
-        painter.rotate(36.0);
-    }
+    //Внешний круг
+    QPen pen(Qt::white);
+    pen.setWidth(1);
+    painter.setPen(pen);
 
+    painter.translate(centerX, centerY);
+    painter.scale(scale, scale);
 
-    /*double scaleFactor = (newSize.width() + newSize.height()) / (2 * 350.0 + 2 * 90.0);
+    QRectF ellipseRect(-97.8, -97.4, 195, 195);
+    painter.save();
+    painter.drawEllipse(ellipseRect);
+    painter.restore();
 
-    double m_height_range = 9999;
-    double points_total = 40;
-    double angle_per_point = 360.0 / points_total;
-    double angle = (m_height / m_height_range) * points_total * angle_per_point;
-
-    double range = 999;
-    double points = 10;
-    double anglep = 360.0 / points;
-    double hundreds = (m_height / 0.1);
-    double anglee = (hundreds / range) * points * anglep;
-
-    static const QPoint fullHand[3] = {
-        QPoint(11, 12),
-        QPoint(-11, 12),
-        QPoint(0, -182)
-    };
-
-    static const QPoint precHand[3] = {
-        QPoint(11, 12),
-        QPoint(-11, 12),
-        QPoint(0, -115)
-    };
+    //100-м деления
+    pen.setWidth(1);
+    painter.setPen(pen);
 
     painter.save();
-    painter.translate(width() / 2 - 4, height() / 2 + 2);
-    painter.scale(width() / 370.0, height() / 370.0);
+    for (int j = 0; j < 60; ++j)
+    {
+        if ((j % 5) != 0)
+            painter.drawLine(0, -91, 0, -97);
+        painter.rotate(7.2);
+    }
+    painter.restore();
+
+    //1000-м деления + цифры
+    pen.setWidth(2);
+    painter.setPen(pen);
+    painter.save();
+    for (int i = 0; i < 10; ++i)
+    {
+        painter.drawLine(0, -86, 0, -96);
+        if (i == 0) painter.drawText(-10,-85,20,20,Qt::AlignHCenter | Qt::AlignTop,QString::number(0));
+        else painter.drawText(-10,-85,20,20,Qt::AlignHCenter | Qt::AlignTop,QString::number(i));
+        painter.rotate(36.0);
+    }
+    painter.restore();
+
+    //Внутренний круг
+    pen.setWidth(1);
+    painter.setPen(pen);
+
+    QRectF ellipsesRect(-60, -60, 120, 120);
+    painter.save();
+    painter.drawEllipse(ellipsesRect);
+    painter.restore();
+
+    //Внутренние 1000-м деления
+    pen.setWidth(2);
+    painter.setPen(pen);
+    painter.save();
+    for (int i = 0; i < 10; ++i)
+    {
+        painter.drawLine(0, -56, 0, -66);
+        painter.rotate(36.0);
+    }
+    painter.restore();
+
+    //Надписи в центре
+    QFont font = painter.font();
+    font.setPointSize(15);
+    painter.setFont(font);
+    painter.setPen(Qt::gray);
+    painter.save();
+    painter.drawText(-41, 2, 80, 50, Qt::AlignCenter, QString("Метры"));
+
+    painter.restore();
+
+    font.setPointSize(15);
+    painter.setFont(font);
+    painter.setPen(Qt::gray);
+    painter.save();
+    painter.drawText(-40, -60, 80, 50, Qt::AlignCenter, QString("Н"));
+
+    painter.restore();
+
+    //Стрелки
+    pen.setWidth(1);
+    double height_range = 9999;
+
+    double points_total = 60;
+    double angle_per_point = 360.0 / points_total;
+    double angle = (m_height / height_range) * points_total * angle_per_point;
+
+    double points = 100;
+    double anglep = 360.0 / points;
+    double hundreds = (m_height / 0.1);
+    double anglee = (hundreds / height_range) * points * anglep;
+
+    static const QPoint hundredsHand[3] = {
+        QPoint(8, 9),
+        QPoint(-8, 9),
+        QPoint(0, -95)
+    };
+
+    static const QPoint thousandsHand[3] = {
+        QPoint(10, 11),
+        QPoint(-10, 11),
+        QPoint(0, -57)
+    };
 
     painter.setPen(QPen(Qt::darkGray, 2, Qt::SolidLine));
     painter.setBrush(Qt::white);
 
     painter.save();
     painter.rotate(anglee);
-    painter.drawConvexPolygon(fullHand, 3);
+    painter.drawConvexPolygon(hundredsHand, 3);
     painter.restore();
 
     painter.setPen(QPen(Qt::darkGray, 2, Qt::SolidLine));
@@ -169,32 +216,30 @@ void HeightIndicatorWidget::paintEvent(QPaintEvent* event)
 
     painter.save();
     painter.rotate(static_cast<int>(angle));
-    painter.drawConvexPolygon(precHand, 3);
-
-    painter.restore();
+    painter.drawConvexPolygon(thousandsHand, 3);
     painter.restore();
 
+    //Закругленный квадрат и текст метров
+    painter.setBrush(Qt::black);
     QPainterPath path;
-    path.addRoundedRect(QRectF(centerX - 53 * scaleFactor,
-                               centerY - 33 * scaleFactor,
-                               100 * scaleFactor,
-                               50 * scaleFactor),
-                        10 * scaleFactor,
-                        10 * scaleFactor);
-    QPen pen(Qt::white, 1 * scaleFactor);
+    path.addRoundedRect(QRectF(-29.5,
+                               -16,
+                               58,
+                               28),
+                        4,
+                        4);
     painter.setPen(pen);
     painter.fillPath(path, Qt::black);
     painter.drawPath(path);
 
-    QFont font = painter.font();
-    font.setPointSize(30 * scaleFactor);
+    font.setPointSize(15);
     painter.setFont(font);
     painter.setPen(Qt::white);
-    painter.drawText(QRectF(centerX - 53 * scaleFactor,
-                            centerY - 35 * scaleFactor,
-                            100 * scaleFactor,
-                            50 * scaleFactor ),
-                     Qt::AlignCenter, QString::number(m_height));*/
+    painter.drawText(QRectF(-32,
+                            -18,
+                            65,
+                            30),
+                     Qt::AlignCenter, QString::number(m_height));
 }
 
 void UDPClient::signalServer()
